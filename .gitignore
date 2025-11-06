@@ -20,3 +20,5 @@ __pycache__/
 # Sensitive data
 api_keys.txt
 config.ini
+
+data/
