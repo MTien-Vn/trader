@@ -1,0 +1,22 @@
+# Virtual environments
+venv/
+env/
+
+# Compiled Python files
+*.pyc
+__pycache__/
+
+# Pytest cache
+.pytest_cache/
+
+# IDE-specific files
+.idea/
+.vscode/
+
+# Temporary files
+*.tmp
+*.swp
+
+# Sensitive data
+api_keys.txt
+config.ini
