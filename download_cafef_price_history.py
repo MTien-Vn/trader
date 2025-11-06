@@ -1,3 +1,4 @@
+from datetime import datetime
 import requests
 import pandas as pd
 import os
@@ -138,9 +139,9 @@ if __name__ == '__main__':
     # --- Configuration ---
     STOCK_SYMBOL = "PLX"
     # Use 'yyyy-mm-dd' format for dates
-    START_DATE = "2021/01/01" 
-    # END_DATE = datetime.now().strftime("%Y-%m-%d") 
-    END_DATE = "2025-11-05" 
+    START_DATE = "2021-01-01" 
+    END_DATE = datetime.now().strftime("%Y-%m-%d") 
+    # END_DATE = "2025-11-06" 
     filename = f"{STOCK_SYMBOL}_price_history.csv"
     # ---------------------
     # Ensure the folder exists

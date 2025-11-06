@@ -22,3 +22,5 @@ api_keys.txt
 config.ini
 
 data/
+
+tuning_results/

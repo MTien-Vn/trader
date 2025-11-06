@@ -206,7 +206,7 @@ def evaluate_and_predict(model, X_test, y_test, target_scaler, last_data_df, ful
 if __name__ == '__main__':
     try:
         # 1. Data Prep
-        stock_df = load_and_clean_data(file_path='data/VIX_price_history_with_indicators.csv')
+        stock_df = load_and_clean_data(file_path='data/PLX_price_history_with_indicators.csv')
         X, y, full_scaler, target_scaler, final_df_features = preprocess_data(
             stock_df, TIME_STEP, FEATURES, TARGET_COLUMNS
         )
