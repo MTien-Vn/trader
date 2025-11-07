@@ -26,9 +26,11 @@ STEP_NEURONS_LAYER = 32
 EPOCHS = 50
 BATCH_SIZE = 32
 FORECAST_DAYS = 7 
+# <<< CRITICAL CHANGE: Max history needed for MACD Slow EMA (26 periods)
+MAX_INDICATOR_LOOKBACK = 26 
 
 # --- KerasTuner Hyperparameter Search Settings (Unchanged) ---
-MAX_TRIALS = 15     
+MAX_TRIALS = 20
 EXECUTIONS_PER_TRIAL = 1 
 OBJECTIVE_METRIC = 'val_loss' 
 PROJECT_NAME = 'lstm_stock_bo'
@@ -98,7 +100,6 @@ def split_data(X, y, train_split_percent):
 
     return X_train, X_test, y_train, y_test
 
-# --- Hypermodel Function (Unchanged) ---
 def build_hypermodel(hp):
     """
     Defines the LSTM model structure and the hyperparameter search space.
@@ -141,39 +142,51 @@ def get_target_indices(features, target_columns):
 
 def calculate_ema(prices, period):
     """Calculates Exponential Moving Average (EMA)."""
-    # prices is a NumPy array or Series
+    if len(prices) < period:
+        # Handle case where insufficient history is available for a true EMA
+        return np.mean(prices) if len(prices) > 0 else 0
     return pd.Series(prices).ewm(span=period, adjust=False).mean().values[-1]
 
 def calculate_rsi(closes, period=14):
-    """Calculates Relative Strength Index (RSI)."""
-    # closes should be a NumPy array or Series
+    """
+    FIXED: Calculates Relative Strength Index (RSI) using robust Pandas EWMA 
+    to prevent NaNs during the recursive forecasting loop.
+    """
+    closes_series = pd.Series(closes)
     
-    diff = pd.Series(closes).diff()
-    up = diff.clip(lower=0)
-    down = -1 * diff.clip(upper=0)
+    if len(closes_series) <= period:
+        return 50.0 
     
-    # Calculate initial EWMA (SMA for the first period)
-    # The first 'period' values are calculated using SMA, then EWMA is applied.
-    # We use a Series to leverage Pandas' efficient EWMA calculation.
-    roll_up = up.rolling(period).mean().iloc[period-1]
-    roll_down = down.rolling(period).mean().iloc[period-1]
-    
-    # Apply standard EWMA for subsequent steps
-    for i in range(period, len(closes)):
-        roll_up = (roll_up * (period - 1) + up.iloc[i]) / period
-        roll_down = (roll_down * (period - 1) + down.iloc[i]) / period
+    diff = closes_series.diff()
+    gain = diff.clip(lower=0)
+    loss = -diff.clip(upper=0)
 
-    if roll_down == 0:
-        rsi = 100.0 # Perfectly bullish
-    else:
-        rs = roll_up / roll_down
-        rsi = 100.0 - (100.0 / (1.0 + rs))
-        
-    return rsi
+    # Use EWM for average gain/loss over the full series
+    avg_gain = gain.ewm(com=period - 1, adjust=False).mean()
+    avg_loss = loss.ewm(com=period - 1, adjust=False).mean()
+    
+    # RS calculation
+    # np.seterr(divide='ignore', invalid='ignore') # Suppress division by zero warning
+    rs = avg_gain / avg_loss
+    
+    # Handle the case where avg_loss is 0 (RSI=100) or avg_gain is 0 (RSI=0)
+    # Using np.inf for division by zero ensures 100
+    rs.loc[avg_loss == 0] = np.inf
+    # rs.loc[avg_gain == 0] = 0 # Not strictly needed as 0 / positive_number = 0
+    
+    rsi = 100 - (100 / (1 + rs))
+    # np.seterr(divide='warn', invalid='warn') # Restore warning settings
+    
+    # Ensure the result is a number, defaulting to 50 if any NaN crept in (e.g., from initial periods)
+    return rsi.values[-1] if not np.isnan(rsi.values[-1]) else 50.0
 
 def calculate_macd(closes, fast_period=12, slow_period=26, signal_period=9):
     """Calculates MACD, MACD Signal, and MACD Hist. Returns the last value of each."""
     
+    if len(closes) < slow_period:
+        # Not enough history for the slow EMA (26). Return neutral values.
+        return 0.0, 0.0, 0.0
+
     closes_series = pd.Series(closes)
     
     # 1. Calculate EMAs
@@ -192,7 +205,7 @@ def calculate_macd(closes, fast_period=12, slow_period=26, signal_period=9):
     return macd.values[-1], macd_signal.values[-1], macd_hist.values[-1]
 
 
-def recalculate_non_target_features_production(sequence_original_data, next_close):
+def recalculate_non_target_features_production(extended_close_history, next_close):
     """
     Recalculates all non-target technical indicators for the next day 
     using the predicted closing price.
@@ -204,26 +217,20 @@ def recalculate_non_target_features_production(sequence_original_data, next_clos
     Returns:
         np.array: Unscaled values for the non-target features for the next day.
     """
-    # Extract the 'close' price history
-    close_index = FEATURES.index('close')
-    
-    # Sequence of closes (TIME_STEP values) + new predicted close (1 value)
-    closes_history = np.append(sequence_original_data[:, close_index], next_close)
+    closes_history = np.append(extended_close_history, next_close)
     
     # --- Calculation ---
     
-    # 1. MA20 (Requires 20 periods)
-    # We need the last 20 closing prices, which is possible since TIME_STEP=20.
+    # 1. MA20 (Uses the last 20 periods)
     ma20_calc = np.mean(closes_history[-20:])
     
-    # 2. RSI (Requires 14 periods)
+    # 2. RSI (Uses the full history for accurate EWMA initialization)
     rsi_calc = calculate_rsi(closes_history, period=14)
     
-    # 3. MACD, MACD_Signal, MACD_Hist
+    # 3. MACD, MACD_Signal, MACD_Hist (Uses the full history)
     macd_calc, macd_signal_calc, macd_hist_calc = calculate_macd(closes_history)
     
     # Order the results according to NON_TARGET_FEATURES: 
-    # ['MA20', 'RSI', 'MACD', 'MACD_Signal', 'MACD_Hist']
     calculated_values = np.array([
         ma20_calc, 
         rsi_calc, 
@@ -231,20 +238,23 @@ def recalculate_non_target_features_production(sequence_original_data, next_clos
         macd_signal_calc, 
         macd_hist_calc
     ])
+
+    print(f"recalculate_non_target_features_production")
+    print(extended_close_history)
+    print(next_close)
+    print(calculated_values.flatten())
     
     return calculated_values.flatten()
 
-# ====================================================================
-# --- Forecasting Function (Updated) ---
-# ====================================================================
 
-def predict_next_n_days(model, initial_scaled_sequence, initial_original_sequence, full_data_scaler, target_scaler, n_days, features, target_columns):
+def predict_next_n_days(model, initial_scaled_sequence, extended_close_history, full_data_scaler, target_scaler, n_days, features, target_columns):
     """
     Performs recursive multi-step forecasting for n_days using 
     recalculated indicators.
     """
     current_scaled_sequence = copy.deepcopy(initial_scaled_sequence)
-    current_original_sequence = copy.deepcopy(initial_original_sequence)
+    # The extended close history remains constant for the duration of the forecast
+    current_extended_close_history = copy.deepcopy(extended_close_history) 
     forecasted_predictions = []
     
     target_indices = get_target_indices(features, target_columns)
@@ -262,9 +272,9 @@ def predict_next_n_days(model, initial_scaled_sequence, initial_original_sequenc
         next_volume_unscaled = final_prediction_unscaled[target_columns.index('volume')]
 
         # 3. Recalculate non-target features for the new step (unscaled)
-        # We only need the predicted Close for the indicators
+        # Use the extended history to calculate robust indicators
         next_non_target_unscaled = recalculate_non_target_features_production(
-            current_original_sequence, next_close_unscaled
+            current_extended_close_history, next_close_unscaled
         )
 
         # 4. Construct the complete new point (unscaled)
@@ -277,7 +287,10 @@ def predict_next_n_days(model, initial_scaled_sequence, initial_original_sequenc
 
         # 6. Update the sliding window sequences
         current_scaled_sequence = np.vstack([current_scaled_sequence[1:], new_scaled_data_point])
-        current_original_sequence = np.vstack([current_original_sequence[1:], new_unscaled_data_point])
+        
+        # <<< CRITICAL FIX: Update the extended close history for the next day's indicator calculation
+        # Drop the oldest price and add the newest prediction
+        current_extended_close_history = np.append(current_extended_close_history[1:], next_close_unscaled)
         
         # 7. Store the unscaled prediction for reporting
         forecasted_predictions.append(final_prediction_unscaled)
@@ -291,7 +304,7 @@ def evaluate_predict_and_forecast(model, X_test, y_test, target_scaler, last_dat
     and performs a multi-day forecast.
     """
     
-    # --- A. Test Evaluation (Single-Step Predictions) ---
+    # --- A. Test Evaluation ---
     scaled_predictions = model.predict(X_test, verbose=0)
     predictions = target_scaler.inverse_transform(scaled_predictions)
     y_test_original = target_scaler.inverse_transform(y_test)
@@ -303,13 +316,24 @@ def evaluate_predict_and_forecast(model, X_test, y_test, target_scaler, last_dat
 
     # --- B. Multi-Day Forecast ---
     
+    # 1. Fetch the necessary extended history for indicators
+    # We need TIME_STEP (20) days of all features + (MAX_INDICATOR_LOOKBACK - 1) extra close prices
+    # Index for 'close'
+    close_index = last_data_df.columns.get_loc('close')
+    
+    # Get the last TIME_STEP rows (for LSTM input)
     last_sequence_original = last_data_df.tail(TIME_STEP).values
     scaled_last_sequence = full_data_scaler.transform(last_sequence_original)
     
+    # Get the extended history of ONLY the close price
+    history_length = TIME_STEP + MAX_INDICATOR_LOOKBACK - 1
+    extended_close_history = last_data_df['close'].tail(history_length).values
+    
+    # 2. Perform the recursive forecast
     forecasted_results = predict_next_n_days(
         model, 
         scaled_last_sequence,          # Scaled sequence for LSTM input
-        last_sequence_original,        # Original sequence for indicator recalculation
+        extended_close_history,        # The full historical close prices needed for indicators
         full_data_scaler, 
         target_scaler, 
         n_days=FORECAST_DAYS, 
@@ -328,14 +352,15 @@ def evaluate_predict_and_forecast(model, X_test, y_test, target_scaler, last_dat
     print(forecast_df.to_markdown(numalign="left", stralign="left"))
 
 
-# --- Main Execution Block for Bayesian Optimization (Unchanged) ---
 if __name__ == '__main__':
     try:
         # 1. Data Prep
+        # We need to assume that the loaded data has enough rows for the history_length (20 + 26 - 1 = 45 rows)
         stock_df = load_and_clean_data(file_path='data/PLX_price_history_with_indicators.csv')
         X, y, full_scaler, target_scaler, final_df_features = preprocess_data(
             stock_df, TIME_STEP, FEATURES, TARGET_COLUMNS
         )
+        # Global variable assignment for build_hypermodel to use
         X_train, X_test, y_train, y_test = split_data(
             X, y, TRAIN_SPLIT_PERCENT
         )
