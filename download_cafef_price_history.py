@@ -137,7 +137,7 @@ def download_cafef_price_history(symbol, start_date_str, end_date_str, output_fi
 
 if __name__ == '__main__':
     # --- Configuration ---
-    STOCK_SYMBOL = "PLX"
+    STOCK_SYMBOL = "VIX"
     # Use 'yyyy-mm-dd' format for dates
     START_DATE = "2021-01-01" 
     END_DATE = datetime.now().strftime("%Y-%m-%d") 
