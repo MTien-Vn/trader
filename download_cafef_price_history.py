@@ -4,6 +4,7 @@ import pandas as pd
 import os
 import time
 from calculate_technical_indicators import calculate_technical_indicators
+from config import STOCK_SYMBOLS
 
 def download_cafef_price_history(symbol, start_date_str, end_date_str, output_filename):
     """
@@ -132,25 +133,55 @@ def download_cafef_price_history(symbol, start_date_str, end_date_str, output_fi
     print(f"\n✅ Successfully downloaded {len(df_final)} records for {symbol}.")
     print(f"Data saved to {output_filename}")
 
+    # Sort by date in ascending order, crucial for time series calculations
+    df_final = df_final.sort_values(by='date').reset_index(drop=True)
+
+    return df_final
+
 
 
 
 if __name__ == '__main__':
-    # --- Configuration ---
-    STOCK_SYMBOL = "PLX"
     # Use 'yyyy-mm-dd' format for dates
     START_DATE = "2021-01-01" 
     END_DATE = datetime.now().strftime("%Y-%m-%d") 
     # END_DATE = "2025-11-06" 
-    filename = f"{STOCK_SYMBOL}_price_history.csv"
     # ---------------------
     # Ensure the folder exists
-    folder_path = '../data'
+    folder_path = 'data'
     os.makedirs(folder_path, exist_ok=True)
 
     # Full path for the CSV file
+    filename = f"VNINDEX_price_history.csv"
     file_path = os.path.join(folder_path, filename)
 
-    # Run the function
-    download_cafef_price_history(STOCK_SYMBOL, START_DATE, END_DATE, file_path)
-    calculate_technical_indicators(file_path)
+    VNINDEX_df = download_cafef_price_history('VNINDEX', START_DATE, END_DATE, file_path)
+
+    # --- Rename columns in VNINDEX to avoid conflicts ---
+    VNINDEX_df = VNINDEX_df.rename(columns={
+        "code": "code_VNINDEX",
+        "close": "VNINDEX_close",
+        "open": "VNINDEX_open",
+        "high": "VNINDEX_high",
+        "low": "VNINDEX_low",
+        "volume": "VNINDEX_volume"
+    })
+
+    for stock_symbol in STOCK_SYMBOLS:
+        filename = f"{stock_symbol}_price_history.csv"
+        file_path = os.path.join(folder_path, filename)
+        current_df = download_cafef_price_history(stock_symbol, START_DATE, END_DATE, file_path)
+        current_df = calculate_technical_indicators(current_df, file_path)
+        merged_df = pd.merge(VNINDEX_df, current_df, on="date", how="inner")
+
+        # --- Output and Save ---
+        print("\merged_df Info:")
+        merged_df.info()
+        print("\nFirst 10 rows (most recent dates) with calculated indicators:")
+        print(merged_df.head(10).to_markdown(index=False))
+
+        try:
+            merged_df.to_csv(file_path, index=False)
+            print(f"\n✅ Data successfully saved to '{file_path}'")
+        except Exception as e:
+            print(f"❌ An error occurred during file saving: {e}")

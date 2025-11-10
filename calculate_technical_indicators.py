@@ -95,7 +95,7 @@ def calculate_volatility_indicators(df):
     
     return df
 
-def calculate_technical_indicators(csv_filename):
+def calculate_technical_indicators(df, file_path):
     """
     Orchestrates the loading, calculation, formatting, and saving of 
     technical indicators.
@@ -103,7 +103,6 @@ def calculate_technical_indicators(csv_filename):
     Args:
         csv_filename (str): The path to the CSV file containing price history.
     """
-    df = load_and_prepare_data(csv_filename)
     if df is None:
         return # Exit if data loading failed
 
@@ -111,33 +110,25 @@ def calculate_technical_indicators(csv_filename):
     df = calculate_momentum_indicators(df)
     df = calculate_volatility_indicators(df)
 
-    # Sort back by date in descending order for presentation
-    df = df.sort_values(by='date', ascending=False).reset_index(drop=True)
-
-    # Select and format the relevant columns for output
-    output_df = df[[
-        'date', 'volume', 'close', 'open', 'high', 'low', 'MA20', 'RSI', 'MACD', 
-        'MACD_Signal', 'MACD_Hist', 'ATR', 'STD_DEV_10'
-    ]]
-    
     # Rounding for presentation
-    output_df = output_df.round({
+    df = df.round({
         'MA20': 2, 'RSI': 2, 'MACD': 3, 'MACD_Signal': 3, 'MACD_Hist': 3,
         'ATR': 3, 'STD_DEV_10': 3 
     })
 
     # --- Output and Save ---
     print("\nDataFrame Info:")
-    output_df.info()
+    df.info()
     print("\nFirst 10 rows (most recent dates) with calculated indicators:")
-    print(output_df.head(10).to_markdown(index=False))
+    print(df.head(10).to_markdown(index=False))
 
-    output_filename = csv_filename.replace(".csv", "_with_indicators.csv")
     try:
-        output_df.to_csv(output_filename, index=False)
-        print(f"\n✅ Data successfully saved to '{output_filename}'")
+        df.to_csv(file_path, index=False)
+        print(f"\n✅ Data successfully saved to '{file_path}'")
     except Exception as e:
         print(f"❌ An error occurred during file saving: {e}")
+
+    return df
 
 # Example Usage (replace 'data.csv' with your actual file name):
 # calculate_technical_indicators('/home/vtp-tiennm/Documents/learn/trading/trader/data/PLX_price_history.csv')

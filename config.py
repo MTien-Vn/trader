@@ -12,14 +12,14 @@ NON_TARGET_FEATURES = [f for f in FEATURES if f not in TARGET_COLUMNS]
 VALIDATION_SPLIT = 0.1
 ACTIVATION = 'linear'
 OPTIMIZER = 'adam'
-EPOCHS = 50
+EPOCHS = 1
 BATCH_SIZE = 32
 FORECAST_DAYS = 7 
 # Max history needed for MACD Slow EMA (26 periods)
 MAX_INDICATOR_LOOKBACK = 26 
 
 # --- KerasTuner Hyperparameter Search Settings ---
-MAX_TRIALS = 20
+MAX_TRIALS = 1
 EXECUTIONS_PER_TRIAL = 1 
 OBJECTIVE_METRIC = 'val_loss' 
 PROJECT_NAME = 'lstm_stock_bo'
@@ -40,8 +40,10 @@ PATIENCE_EARLY_STOPPING = 10
 PATIENCE_LR_SCHEDULING = 5
 
 # --- Data File Path ---
-DATA_FILE_PATH = 'data/PLX_price_history_with_indicators.csv'
+DATA_FILE_PATH = 'data/PLX_price_history.csv'
 
 # Ensure the 'data' directory exists for local testing
 if not os.path.exists('data'):
     os.makedirs('data')
+
+STOCK_SYMBOLS = ['PLX','PC1']
