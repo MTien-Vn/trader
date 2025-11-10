@@ -18,13 +18,13 @@ from model import build_model
 
 # --- Multi-Step Forecasting (Moved from main block) ---
 
-def predict_next_n_days(model, initial_scaled_sequence, extended_close_history, full_data_scaler, target_scaler, n_days, model_type='LSTM'):
+def predict_next_n_days(model, initial_scaled_sequence, extended_data_history, full_data_scaler, target_scaler, n_days, model_type='LSTM'):
     """
     Performs recursive multi-step forecasting for n_days using 
     recalculated indicators.
     """
     current_scaled_sequence = copy.deepcopy(initial_scaled_sequence)
-    current_extended_close_history = copy.deepcopy(extended_close_history) 
+    current_extended_data_history = copy.deepcopy(extended_data_history) 
     forecasted_predictions = []
     
     target_indices = get_target_indices(FEATURES, TARGET_COLUMNS)
@@ -47,17 +47,24 @@ def predict_next_n_days(model, initial_scaled_sequence, extended_close_history, 
         
         # 2. Inverse transform the prediction to get unscaled Close/Volume
         final_prediction_unscaled = target_scaler.inverse_transform(scaled_prediction)[0]
-        next_close_unscaled = final_prediction_unscaled[TARGET_COLUMNS.index('close')]
-        # next_volume_unscaled = final_prediction_unscaled[TARGET_COLUMNS.index('volume')]
+        # Map the unscaled array to a dictionary for easy access
+        next_predictions = {
+            col: final_prediction_unscaled[i] 
+            for i, col in enumerate(TARGET_COLUMNS)
+        }
 
         # 3. Recalculate non-target features (unscaled)
         next_non_target_unscaled = recalculate_non_target_features_production(
-            current_extended_close_history, next_close_unscaled
+            current_extended_data_history, next_predictions
         )
 
         # 4. Construct the complete new point (unscaled)
         new_unscaled_data_point = np.zeros(len(FEATURES))
-        new_unscaled_data_point[target_indices] = final_prediction_unscaled
+        # Place the 4 target predictions into the new point
+        for i, col in enumerate(TARGET_COLUMNS):
+             new_unscaled_data_point[target_indices[i]] = next_predictions[col]
+
+        # Place the 7 calculated non-target features into the new point
         new_unscaled_data_point[non_target_indices] = next_non_target_unscaled
         
         # 5. Scale the new point
@@ -65,7 +72,20 @@ def predict_next_n_days(model, initial_scaled_sequence, extended_close_history, 
 
         # 6. Update the sliding window sequences
         current_scaled_sequence = np.vstack([current_scaled_sequence[1:], new_scaled_data_point])
-        current_extended_close_history = np.append(current_extended_close_history[1:], next_close_unscaled)
+
+        # New row as a dictionary for reliable DataFrame conversion
+        new_data = {
+            'close': [next_predictions['close']],
+            'high': [next_predictions['high']],
+            'low': [next_predictions['low']]
+        }
+        new_row = pd.DataFrame(new_data)
+
+        # Drop the oldest row (index 0 after reset) and append the newest prediction
+        current_extended_data_history = pd.concat(
+            [current_extended_data_history.iloc[1:].reset_index(drop=True), new_row], 
+            ignore_index=True
+        )
         
         # 7. Store the unscaled prediction
         forecasted_predictions.append(final_prediction_unscaled)
@@ -102,13 +122,19 @@ def evaluate_predict_and_forecast(model, X_test, y_test, target_scaler, last_dat
     
     # Get the extended history of ONLY the close price
     history_length = TIME_STEP + MAX_INDICATOR_LOOKBACK - 1
-    extended_close_history = last_data_df['close'].tail(history_length).values
+
+    # Extract the necessary columns for indicator calculation (Close, High, Low)
+    required_indicator_cols = ['close', 'high', 'low'] 
+
+    # IMPORTANT: Ensure the original data loading includes 'high' and 'low'
+    # For now, we assume the data frame passed in (`last_data_df`) has them.    
+    extended_data_history = last_data_df[required_indicator_cols].tail(history_length)
     
     # 2. Perform the recursive forecast
     forecasted_results = predict_next_n_days(
         model, 
         scaled_last_sequence, 
-        extended_close_history, 
+        extended_data_history, 
         full_data_scaler, 
         target_scaler, 
         n_days=FORECAST_DAYS,
@@ -130,7 +156,7 @@ def evaluate_predict_and_forecast(model, X_test, y_test, target_scaler, last_dat
 if __name__ == '__main__':
     
     # --- CHOOSE MODEL HERE: 'LSTM', 'Bi-LSTM', or 'ConvLSTM' ---
-    SELECTED_MODEL_TYPE = 'LSTM' # <--- Change this line to switch models!
+    SELECTED_MODEL_TYPE = 'ConvLSTM' # <--- Change this line to switch models!
     print(f"🚀 Training with Architecture: **{SELECTED_MODEL_TYPE}**")
     
     # 1. Data Prep

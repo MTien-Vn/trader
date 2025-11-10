@@ -65,8 +65,50 @@ def calculate_macd(closes, fast_period=12, slow_period=26, signal_period=9):
     
     return macd.values[-1], macd_signal.values[-1], macd_hist.values[-1]
 
+def calculate_atr(highs, lows, closes, period=14):
+    """Calculates Average True Range (ATR)."""
+    if len(closes) < 2:
+        return 0.0
 
-def recalculate_non_target_features_production(extended_close_history, next_close):
+    # Ensure all inputs are NumPy arrays or lists of the same length
+    h = np.array(highs[-len(closes):])
+    l = np.array(lows[-len(closes):])
+    c_prev = np.array(closes[-len(closes):])[:-1]
+    c = np.array(closes[-len(closes):])[1:] # Current close is c[i], previous close is c_prev[i]
+
+    # True Range (TR) calculation (starts from the second day)
+    tr_h_l = h[1:] - l[1:]
+    tr_h_pc = np.abs(h[1:] - c_prev)
+    tr_l_pc = np.abs(l[1:] - c_prev)
+    
+    TR_values = np.maximum.reduce([tr_h_l, tr_h_pc, tr_l_pc])
+    
+    if len(TR_values) < period:
+        # Use simple average if not enough history for EMA
+        return np.mean(TR_values) if len(TR_values) > 0 else 0.0
+
+    # Use EWMA for ATR calculation
+    atr_series = pd.Series(TR_values).ewm(span=period, adjust=False).mean()
+    return atr_series.values[-1]
+
+def calculate_std_dev_return(closes, period=10):
+    """Calculates Standard Deviation of Log Returns."""
+    closes_series = pd.Series(closes)
+    
+    if len(closes_series) <= period:
+        return 0.0
+        
+    # Calculate Log Returns
+    returns = np.log(closes_series / closes_series.shift(1))
+    
+    # Calculate rolling standard deviation, then take the last value
+    std_dev = returns.rolling(window=period).std()
+    
+    return std_dev.values[-1] if not np.isnan(std_dev.values[-1]) else 0.0
+
+
+
+def recalculate_non_target_features_production(extended_data_history, next_predictions):
     """
     Recalculates all non-target technical indicators for the next day 
     using the predicted closing price.
@@ -78,7 +120,17 @@ def recalculate_non_target_features_production(extended_close_history, next_clos
     Returns:
         np.array: Unscaled values for the non-target features for the next day.
     """
-    closes_history = np.append(extended_close_history, next_close)
+
+    next_close = next_predictions['close']
+    next_high = next_predictions['high']
+    next_low = next_predictions['low']
+
+    # Extend the close history
+    closes_history = np.append(extended_data_history['close'].values, next_close)
+    
+    # Extend the high/low history (assuming High_T = Low_T = Close_T)
+    highs_history = np.append(extended_data_history['high'].values, next_high)
+    lows_history = np.append(extended_data_history['low'].values, next_low)
     
     # --- Calculation ---
     
@@ -90,6 +142,12 @@ def recalculate_non_target_features_production(extended_close_history, next_clos
     
     # 3. MACD, MACD_Signal, MACD_Hist (Uses the full history)
     macd_calc, macd_signal_calc, macd_hist_calc = calculate_macd(closes_history)
+
+    # 4. ATR (Requires high, low, close history)
+    atr_calc = calculate_atr(highs_history, lows_history, closes_history, period=14)
+    
+    # 5. STD_DEV_10 (Requires close history)
+    std_dev_calc = calculate_std_dev_return(closes_history, period=10)
     
     # Order the results according to NON_TARGET_FEATURES: 
     calculated_values = np.array([
@@ -97,7 +155,9 @@ def recalculate_non_target_features_production(extended_close_history, next_clos
         rsi_calc, 
         macd_calc, 
         macd_signal_calc, 
-        macd_hist_calc
+        macd_hist_calc,
+        atr_calc,
+        std_dev_calc
     ])
 
     return calculated_values.flatten()

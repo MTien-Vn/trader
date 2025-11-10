@@ -3,7 +3,7 @@ import requests
 import pandas as pd
 import os
 import time
-from data_generator.calculate_technical_indicators import calculate_technical_indicators
+from calculate_technical_indicators import calculate_technical_indicators
 
 def download_cafef_price_history(symbol, start_date_str, end_date_str, output_filename):
     """
@@ -24,7 +24,7 @@ def download_cafef_price_history(symbol, start_date_str, end_date_str, output_fi
     
     # Pagination setup
     page_index = 1
-    page_size = 200 # Set a reasonably large page size for fewer requests
+    page_size = 400 # Set a reasonably large page size for fewer requests
     total_pages = 1 # Start with 1, will be updated by the first response
 
     print(f"Starting download for symbol: {symbol}...")
@@ -145,7 +145,7 @@ if __name__ == '__main__':
     filename = f"{STOCK_SYMBOL}_price_history.csv"
     # ---------------------
     # Ensure the folder exists
-    folder_path = 'data'
+    folder_path = '../data'
     os.makedirs(folder_path, exist_ok=True)
 
     # Full path for the CSV file

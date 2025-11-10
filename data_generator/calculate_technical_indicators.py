@@ -140,4 +140,4 @@ def calculate_technical_indicators(csv_filename):
         print(f"❌ An error occurred during file saving: {e}")
 
 # Example Usage (replace 'data.csv' with your actual file name):
-calculate_technical_indicators('/home/vtp-tiennm/Documents/learn/trading/trader/data/PLX_price_history.csv')
+# calculate_technical_indicators('/home/vtp-tiennm/Documents/learn/trading/trader/data/PLX_price_history.csv')

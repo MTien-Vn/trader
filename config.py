@@ -6,8 +6,8 @@ import os
 TIME_STEP = 20 
 TRAIN_SPLIT_PERCENT = 0.8
 # NOTE: Ensure these features match your input data columns
-FEATURES = ['date', 'volume', 'close', 'open', 'high', 'low', 'MA20', 'RSI', 'MACD', 'MACD_Signal', 'MACD_Hist', 'ATR', 'STD_DEV_10']
-TARGET_COLUMNS = ['close', 'volume'] 
+FEATURES = ['volume', 'close', 'open', 'high', 'low', 'MA20', 'RSI', 'MACD', 'MACD_Signal', 'MACD_Hist', 'ATR', 'STD_DEV_10']
+TARGET_COLUMNS = ['close', 'volume', 'high', 'low', 'open'] 
 NON_TARGET_FEATURES = [f for f in FEATURES if f not in TARGET_COLUMNS] 
 VALIDATION_SPLIT = 0.1
 ACTIVATION = 'linear'
