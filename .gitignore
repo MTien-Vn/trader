@@ -23,4 +23,4 @@ config.ini
 
 data/
 
-tuning_results/
+tuning_results*/
