@@ -156,7 +156,7 @@ def evaluate_predict_and_forecast(model, X_test, y_test, target_scaler, last_dat
 if __name__ == '__main__':
     
     # --- CHOOSE MODEL HERE: 'LSTM', 'Bi-LSTM', or 'ConvLSTM' ---
-    SELECTED_MODEL_TYPE = 'ConvLSTM' # <--- Change this line to switch models!
+    SELECTED_MODEL_TYPE = 'LSTM' # <--- Change this line to switch models!
     print(f"🚀 Training with Architecture: **{SELECTED_MODEL_TYPE}**")
     
     # 1. Data Prep
