@@ -38,12 +38,13 @@ def create_sequences(data, time_step, features, target_columns):
         
     return np.array(X), np.array(Y)
 
-def preprocess_data(df, time_step, features, target_columns):
+def preprocess_data(file_path, time_step, features, target_columns):
     """
     Handles time-aware splitting, scaling (NO DATA LEAKAGE), and sequence creation.
     
     Returns: X_train, X_test, y_train, y_test, full_scaler, target_scaler, final_df_features
     """
+    df = load_and_clean_data(file_path)
     df_features = df[features]
     full_data = df_features.values
     
@@ -64,7 +65,7 @@ def preprocess_data(df, time_step, features, target_columns):
     
     # 3. Transform the full dataset for sequence creation
     scaled_full_data = full_data_scaler.transform(full_data)
-    
+
     # 4. Create sequences from the scaled full data
     X, y = create_sequences(scaled_full_data, time_step, features, target_columns)
     

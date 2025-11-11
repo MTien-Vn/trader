@@ -1,12 +1,13 @@
 from datetime import datetime
 import requests
 import pandas as pd
+import numpy as np
 import os
 import time
 from calculate_technical_indicators import calculate_technical_indicators
-from config import STOCK_SYMBOLS
+from config import DATA_FILE_PATH, FEATURES, FOLDER_PATH, STOCK_SYMBOLS
 
-def download_cafef_price_history(symbol, start_date_str, end_date_str, output_filename):
+def download_cafef_price_history(symbol, start_date_str, end_date_str):
     """
     Downloads historical price data from the Cafef API for a given stock symbol
     and saves it to a CSV file, adapted for the nested JSON response structure.
@@ -15,7 +16,6 @@ def download_cafef_price_history(symbol, start_date_str, end_date_str, output_fi
         symbol (str): The stock ticker (e.g., 'FPT').
         start_date_str (str): Start date in 'dd/mm/yyyy' format.
         end_date_str (str): End date in 'dd/mm/yyyy' format.
-        output_filename (str): The name of the CSV file to save the data to.
     """
     # The base URL for the historical data API
     BASE_URL = "https://s.cafef.vn/Ajax/PageNew/DataHistory/PriceHistory.ashx"
@@ -125,13 +125,8 @@ def download_cafef_price_history(symbol, start_date_str, end_date_str, output_fi
         
         # Step 3: Convert to numeric, coercing errors to NaN
         df_final[col] = pd.to_numeric(df_final[col], errors='coerce')
-
-
-    # Save the final DataFrame to a CSV file
-    df_final.to_csv(output_filename, index=False, encoding='utf-8')
     
     print(f"\n✅ Successfully downloaded {len(df_final)} records for {symbol}.")
-    print(f"Data saved to {output_filename}")
 
     # Sort by date in ascending order, crucial for time series calculations
     df_final = df_final.sort_values(by='date').reset_index(drop=True)
@@ -148,40 +143,42 @@ if __name__ == '__main__':
     # END_DATE = "2025-11-06" 
     # ---------------------
     # Ensure the folder exists
-    folder_path = 'data'
-    os.makedirs(folder_path, exist_ok=True)
+    os.makedirs(FOLDER_PATH, exist_ok=True)
 
-    # Full path for the CSV file
-    filename = f"VNINDEX_price_history.csv"
-    file_path = os.path.join(folder_path, filename)
-
-    VNINDEX_df = download_cafef_price_history('VNINDEX', START_DATE, END_DATE, file_path)
-
-    # --- Rename columns in VNINDEX to avoid conflicts ---
-    VNINDEX_df = VNINDEX_df.rename(columns={
-        "code": "code_VNINDEX",
-        "close": "VNINDEX_close",
-        "open": "VNINDEX_open",
-        "high": "VNINDEX_high",
-        "low": "VNINDEX_low",
-        "volume": "VNINDEX_volume"
-    })
+    all_data = []
 
     for stock_symbol in STOCK_SYMBOLS:
         filename = f"{stock_symbol}_price_history.csv"
-        file_path = os.path.join(folder_path, filename)
-        current_df = download_cafef_price_history(stock_symbol, START_DATE, END_DATE, file_path)
-        current_df = calculate_technical_indicators(current_df, file_path)
-        merged_df = pd.merge(VNINDEX_df, current_df, on="date", how="inner")
+        output_file = os.path.join(FOLDER_PATH, filename)
 
-        # --- Output and Save ---
-        print("\merged_df Info:")
-        merged_df.info()
-        print("\nFirst 10 rows (most recent dates) with calculated indicators:")
-        print(merged_df.head(10).to_markdown(index=False))
+        current_df = download_cafef_price_history(stock_symbol, START_DATE, END_DATE)
+        current_df = calculate_technical_indicators(current_df)
 
-        try:
-            merged_df.to_csv(file_path, index=False)
-            print(f"\n✅ Data successfully saved to '{file_path}'")
-        except Exception as e:
-            print(f"❌ An error occurred during file saving: {e}")
+        # 🧹 Clean data
+        current_df.dropna(inplace=True)           # remove rows with any NaN
+        current_df.drop_duplicates(inplace=True)  # remove duplicate rows
+
+        # 📊 Round all numeric columns to 2 decimal places
+        numeric_cols = current_df.select_dtypes(include=[np.number]).columns
+        current_df[numeric_cols] = current_df[numeric_cols].round(2)
+
+        # 🚫 Remove rows with zero values in any numeric column
+        current_df = current_df[(current_df[numeric_cols] != 0).all(axis=1)]
+
+        current_df['date'] = pd.to_datetime(current_df['date'])
+
+        current_df.sort_values(by=['date'], inplace=True)
+
+        all_data.append(current_df)
+
+        current_df.to_csv(output_file, index=False)
+        print(f"✅ Saved combined indicators to: {output_file}")
+
+    final_df = pd.concat(all_data, ignore_index=True)
+    final_df.to_csv(DATA_FILE_PATH, index=False)
+
+    print(f"✅ Total rows saved: {len(final_df)}")
+
+
+
+

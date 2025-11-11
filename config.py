@@ -6,20 +6,20 @@ import os
 TIME_STEP = 20 
 TRAIN_SPLIT_PERCENT = 0.8
 # NOTE: Ensure these features match your input data columns
-FEATURES = ['VNINDEX_close', 'VNINDEX_open','VNINDEX_high', 'VNINDEX_low', 'VNINDEX_volume', 'close', 'volume', 'open', 'high', 'low', 'MA20', 'RSI', 'MACD', 'MACD_Signal', 'MACD_Hist', 'ATR', 'STD_DEV_10']
-TARGET_COLUMNS = ['VNINDEX_close', 'VNINDEX_open','VNINDEX_high', 'close', 'VNINDEX_low', 'VNINDEX_volume', 'volume', 'high', 'low', 'open'] 
+FEATURES = ['RSI', 'MACD', 'MACD_Signal', 'MACD_Hist', 'ATR', 'STD_DEV', 'MFI', 'VROC', 'CMF', 'PCT_CHANGE']
+TARGET_COLUMNS =  ['RSI', 'MACD', 'MACD_Signal', 'MACD_Hist', 'ATR', 'STD_DEV', 'MFI', 'VROC', 'CMF', 'PCT_CHANGE']
 NON_TARGET_FEATURES = [f for f in FEATURES if f not in TARGET_COLUMNS] 
 VALIDATION_SPLIT = 0.1
 ACTIVATION = 'linear'
 OPTIMIZER = 'adam'
-EPOCHS = 50
+EPOCHS = 1
 BATCH_SIZE = 32
 FORECAST_DAYS = 7 
 # Max history needed for MACD Slow EMA (26 periods)
 MAX_INDICATOR_LOOKBACK = 26 
 
 # --- KerasTuner Hyperparameter Search Settings ---
-MAX_TRIALS = 30
+MAX_TRIALS = 1
 EXECUTIONS_PER_TRIAL = 1 
 OBJECTIVE_METRIC = 'val_loss' 
 PROJECT_NAME = 'lstm_stock_bo'
@@ -40,10 +40,14 @@ PATIENCE_EARLY_STOPPING = 10
 PATIENCE_LR_SCHEDULING = 5
 
 # --- Data File Path ---
-DATA_FILE_PATH = 'data/PLX_price_history.csv'
+DATA_FILE_PATH = 'data/price_history.csv'
+
+FOLDER_PATH = 'data'
 
 # Ensure the 'data' directory exists for local testing
-if not os.path.exists('data'):
-    os.makedirs('data')
+if not os.path.exists(FOLDER_PATH):
+    os.makedirs(FOLDER_PATH)
 
 STOCK_SYMBOLS = ['PLX','PC1']
+
+PREDICT_STOCK_SYMBOLS = ['PLX','PC1']

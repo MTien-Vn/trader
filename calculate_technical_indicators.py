@@ -1,133 +1,105 @@
 import pandas as pd
 
-import pandas as pd
+import numpy as np
 
-def load_and_prepare_data(csv_filename):
-    """
-    Loads the CSV file, parses the date, sorts the data, and returns the DataFrame.
-    
-    Args:
-        csv_filename (str): The path to the CSV file.
-        
-    Returns:
-        pd.DataFrame: The prepared DataFrame, or None if an error occurs.
-    """
-    try:
-        df = pd.read_csv(csv_filename)
-        df['date'] = pd.to_datetime(df['date'])
-        print(f"✅ Successfully loaded {len(df)} records from {csv_filename}")
-        
-        # Sort by date in ascending order, crucial for time series calculations
-        df = df.sort_values(by='date').reset_index(drop=True)
-        return df
-    except FileNotFoundError:
-        print(f"❌ Error: File not found at '{csv_filename}'.")
-        return None
-    except Exception as e:
-        print(f"❌ An error occurred during data loading: {e}")
-        return None
-
-def calculate_momentum_indicators(df):
-    """
-    Calculates MA20, MACD, and RSI.
-    
-    Args:
-        df (pd.DataFrame): The input DataFrame with 'close' prices.
-        
-    Returns:
-        pd.DataFrame: The DataFrame with new indicator columns.
-    """
-    # --- 1. Calculate MA20 (20-day Simple Moving Average) ---
-    df['MA20'] = df['close'].rolling(window=20).mean()
-
-    # --- 2. Calculate MACD (Moving Average Convergence Divergence) ---
-    EMA_12 = df['close'].ewm(span=12, adjust=False).mean()
-    EMA_26 = df['close'].ewm(span=26, adjust=False).mean()
-
-    df['MACD'] = EMA_12 - EMA_26
-    df['MACD_Signal'] = df['MACD'].ewm(span=9, adjust=False).mean()
-    df['MACD_Hist'] = df['MACD'] - df['MACD_Signal']
-
-    # --- 3. Calculate RSI (Relative Strength Index) (14-day) ---
-    period = 14
+# ======================
+# --- RSI (Relative Strength Index)
+# ======================
+def calculate_rsi(df, period=14):
     delta = df['close'].diff()
-    gain = delta.where(delta > 0, 0)
-    loss = -delta.where(delta < 0, 0)
-
-    # Use EWMA for smoothing (standard RSI calculation)
-    avg_gain = gain.ewm(com=period - 1, adjust=False).mean()
-    avg_loss = loss.ewm(com=period - 1, adjust=False).mean()
-    RS = avg_gain / avg_loss
-    df['RSI'] = 100 - (100 / (1 + RS))
-    
+    gain = np.where(delta > 0, delta, 0)
+    loss = np.where(delta < 0, -delta, 0)
+    avg_gain = pd.Series(gain).rolling(window=period).mean()
+    avg_loss = pd.Series(loss).rolling(window=period).mean()
+    rs = avg_gain / avg_loss
+    df['RSI'] = 100 - (100 / (1 + rs))
     return df
 
-def calculate_volatility_indicators(df):
-    """
-    Calculates ATR and Standard Deviation of Returns (STD_DEV_10).
-    
-    Args:
-        df (pd.DataFrame): The input DataFrame with 'high', 'low', and 'close' prices.
-        
-    Returns:
-        pd.DataFrame: The DataFrame with new indicator columns.
-    """
-    # --- 1. Calculate ATR (Average True Range) (14-day) ---
-    # True Range (TR) calculation
+
+# ======================
+# --- MACD (Moving Average Convergence Divergence)
+# ======================
+def calculate_macd(df, fast=12, slow=26, signal=9):
+    ema_fast = df['close'].ewm(span=fast, min_periods=fast).mean()
+    ema_slow = df['close'].ewm(span=slow, min_periods=slow).mean()
+    df['MACD'] = ema_fast - ema_slow
+    df['MACD_Signal'] = df['MACD'].ewm(span=signal, min_periods=signal).mean()
+    df['MACD_Hist'] = df['MACD'] - df['MACD_Signal']
+    return df
+
+
+# ======================
+# --- ATR (Average True Range)
+# ======================
+def calculate_atr(df, period=14):
     high_low = df['high'] - df['low']
-    high_prev_close = abs(df['high'] - df['close'].shift(1))
-    low_prev_close = abs(df['low'] - df['close'].shift(1))
-    df['TR'] = pd.concat([high_low, high_prev_close, low_prev_close], axis=1).max(axis=1)
-    
-    # ATR as an EWMA of TR
-    atr_period = 14
-    df['ATR'] = df['TR'].ewm(com=atr_period - 1, adjust=False).mean()
-    df = df.drop('TR', axis=1)
-
-    # --- 2. Calculate Standard Deviation of Returns (STD_DEV_10) ---
-    std_period = 10
-    # Calculate daily percentage returns
-    df['Daily_Return'] = df['close'].pct_change() * 100 
-    
-    # Calculate the rolling standard deviation of the daily returns
-    df['STD_DEV_10'] = df['Daily_Return'].rolling(window=std_period).std()
-    df = df.drop('Daily_Return', axis=1)
-    
+    high_close = np.abs(df['high'] - df['close'].shift())
+    low_close = np.abs(df['low'] - df['close'].shift())
+    tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+    df['ATR'] = tr.rolling(window=period).mean()
     return df
 
-def calculate_technical_indicators(df, file_path):
+
+# ======================
+# --- STD_DEV (Rolling Standard Deviation)
+# ======================
+def calculate_stddev(df, period=10):
+    df['STD_DEV'] = df['close'].rolling(window=period).std()
+    return df
+
+
+# ======================
+# --- MFI (Money Flow Index)
+# ======================
+def calculate_mfi(df, period=14):
+    typical_price = (df['high'] + df['low'] + df['close']) / 3
+    money_flow = typical_price * df['volume']
+    positive_flow = np.where(typical_price > typical_price.shift(), money_flow, 0)
+    negative_flow = np.where(typical_price < typical_price.shift(), money_flow, 0)
+
+    positive_mf = pd.Series(positive_flow).rolling(window=period).sum()
+    negative_mf = pd.Series(negative_flow).rolling(window=period).sum()
+    mfi = 100 * (positive_mf / (positive_mf + negative_mf))
+    df['MFI'] = mfi
+    return df
+
+
+# ======================
+# --- VROC (Volume Rate of Change)
+# ======================
+def calculate_vroc(df, period=14):
+    df['VROC'] = ((df['volume'] - df['volume'].shift(period)) / df['volume'].shift(period)) * 100
+    return df
+
+
+# ======================
+# --- CMF (Chaikin Money Flow)
+# ======================
+def calculate_cmf(df, period=20):
+    mf_multiplier = ((df['close'] - df['low']) - (df['high'] - df['close'])) / (df['high'] - df['low'])
+    mf_volume = mf_multiplier * df['volume']
+    df['CMF'] = mf_volume.rolling(window=period).sum() / df['volume'].rolling(window=period).sum()
+    return df
+
+def calculate_percent_change(df):
     """
-    Orchestrates the loading, calculation, formatting, and saving of 
-    technical indicators.
-    
-    Args:
-        csv_filename (str): The path to the CSV file containing price history.
+    Adds a column 'PCT_CHANGE' that represents the percent change in closing price
+    compared to the previous day.
     """
-    if df is None:
-        return # Exit if data loading failed
+    df = df.copy()
+    df['PCT_CHANGE'] = df['close'].pct_change() * 100
+    return df
 
-    # Calculate indicators
-    df = calculate_momentum_indicators(df)
-    df = calculate_volatility_indicators(df)
-
-    # Rounding for presentation
-    df = df.round({
-        'MA20': 2, 'RSI': 2, 'MACD': 3, 'MACD_Signal': 3, 'MACD_Hist': 3,
-        'ATR': 3, 'STD_DEV_10': 3 
-    })
-
-    # --- Output and Save ---
-    print("\nDataFrame Info:")
-    df.info()
-    print("\nFirst 10 rows (most recent dates) with calculated indicators:")
-    print(df.head(10).to_markdown(index=False))
-
-    try:
-        df.to_csv(file_path, index=False)
-        print(f"\n✅ Data successfully saved to '{file_path}'")
-    except Exception as e:
-        print(f"❌ An error occurred during file saving: {e}")
-
+def calculate_technical_indicators(df):
+    df = df.copy()
+    df = calculate_percent_change(df)
+    df = calculate_rsi(df)
+    df = calculate_macd(df)
+    df = calculate_atr(df)
+    df = calculate_stddev(df)
+    df = calculate_mfi(df)
+    df = calculate_vroc(df)
+    df = calculate_cmf(df)
     return df
 
 # Example Usage (replace 'data.csv' with your actual file name):

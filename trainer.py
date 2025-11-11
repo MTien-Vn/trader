@@ -8,6 +8,7 @@ import kerastuner as kt
 import os 
 import shutil
 import copy 
+from tensorflow.keras.models import save_model
 
 # Local imports
 from config import *
@@ -18,13 +19,13 @@ from model import build_model
 
 # --- Multi-Step Forecasting (Moved from main block) ---
 
-def predict_next_n_days(model, initial_scaled_sequence, extended_data_history, full_data_scaler, target_scaler, n_days, model_type='LSTM'):
+def predict_next_n_days(model, initial_scaled_sequence, full_data_scaler, target_scaler, n_days, model_type='LSTM'):
     """
     Performs recursive multi-step forecasting for n_days using 
     recalculated indicators.
     """
     current_scaled_sequence = copy.deepcopy(initial_scaled_sequence)
-    current_extended_data_history = copy.deepcopy(extended_data_history) 
+    # current_extended_data_history = copy.deepcopy(extended_data_history) 
     forecasted_predictions = []
     
     target_indices = get_target_indices(FEATURES, TARGET_COLUMNS)
@@ -54,9 +55,9 @@ def predict_next_n_days(model, initial_scaled_sequence, extended_data_history, f
         }
 
         # 3. Recalculate non-target features (unscaled)
-        next_non_target_unscaled = recalculate_non_target_features_production(
-            current_extended_data_history, next_predictions
-        )
+        # next_non_target_unscaled = recalculate_non_target_features_production(
+        #     current_extended_data_history, next_predictions
+        # )
 
         # 4. Construct the complete new point (unscaled)
         new_unscaled_data_point = np.zeros(len(FEATURES))
@@ -65,7 +66,7 @@ def predict_next_n_days(model, initial_scaled_sequence, extended_data_history, f
              new_unscaled_data_point[target_indices[i]] = next_predictions[col]
 
         # Place the 7 calculated non-target features into the new point
-        new_unscaled_data_point[non_target_indices] = next_non_target_unscaled
+        # new_unscaled_data_point[non_target_indices] = next_non_target_unscaled
         
         # 5. Scale the new point
         new_scaled_data_point = full_data_scaler.transform(new_unscaled_data_point.reshape(1, -1))[0]
@@ -74,18 +75,18 @@ def predict_next_n_days(model, initial_scaled_sequence, extended_data_history, f
         current_scaled_sequence = np.vstack([current_scaled_sequence[1:], new_scaled_data_point])
 
         # New row as a dictionary for reliable DataFrame conversion
-        new_data = {
-            'close': [next_predictions['close']],
-            'high': [next_predictions['high']],
-            'low': [next_predictions['low']]
-        }
-        new_row = pd.DataFrame(new_data)
+        # new_data = {
+        #     'close': [next_predictions['close']],
+        #     'high': [next_predictions['high']],
+        #     'low': [next_predictions['low']]
+        # }
+        # new_row = pd.DataFrame(new_data)
 
-        # Drop the oldest row (index 0 after reset) and append the newest prediction
-        current_extended_data_history = pd.concat(
-            [current_extended_data_history.iloc[1:].reset_index(drop=True), new_row], 
-            ignore_index=True
-        )
+        # # Drop the oldest row (index 0 after reset) and append the newest prediction
+        # current_extended_data_history = pd.concat(
+        #     [current_extended_data_history.iloc[1:].reset_index(drop=True), new_row], 
+        #     ignore_index=True
+        # )
         
         # 7. Store the unscaled prediction
         forecasted_predictions.append(final_prediction_unscaled)
@@ -93,12 +94,31 @@ def predict_next_n_days(model, initial_scaled_sequence, extended_data_history, f
     return np.array(forecasted_predictions)
 
 
-def evaluate_predict_and_forecast(model, X_test, y_test, target_scaler, last_data_df, full_data_scaler, model_type):
-    """
-    Evaluates the model on the test set, and performs a multi-day forecast.
-    """
+def forecast(model, target_scaler, last_data_df, full_data_scaler, model_type, stock_symbol):
+    # 1. Fetch the necessary extended history for indicators
+    last_sequence_original = last_data_df.tail(TIME_STEP).values
+    scaled_last_sequence = full_data_scaler.transform(last_sequence_original)
     
-    # --- A. Test Evaluation ---
+    # 2. Perform the recursive forecast
+    forecasted_results = predict_next_n_days(
+        model, 
+        scaled_last_sequence, 
+        full_data_scaler, 
+        target_scaler, 
+        n_days=FORECAST_DAYS,
+        model_type=model_type
+    )
+
+    print(f"\n--- {FORECAST_DAYS}-Day Multi-Step Forecast: {stock_symbol} ---")
+    
+    forecast_df = pd.DataFrame(forecasted_results, columns=TARGET_COLUMNS)
+    forecast_df.index = [f"Day +{i+1}" for i in range(FORECAST_DAYS)]
+    
+    forecast_df['PCT_CHANGE'] = forecast_df['PCT_CHANGE'].apply(lambda x: f"{x:,.2f}")
+    
+    print(forecast_df.to_markdown(numalign="left", stralign="left"))
+
+def evaluate(model, X_test, y_test, target_scaler, model_type):
     if model_type == 'ConvLSTM':
         # Reshape X_test for ConvLSTM (samples, time_steps, 1, 1, features)
         X_test_reshaped = X_test.reshape(X_test.shape[0], TIME_STEP, 1, 1, X_test.shape[-1])
@@ -114,42 +134,6 @@ def evaluate_predict_and_forecast(model, X_test, y_test, target_scaler, last_dat
     print(f"\n--- Evaluation Results (Test Set) ---")
     print(f"Root Mean Squared Error (RMSE) for Close Price: ${rmse:,.2f}")
 
-    # --- B. Multi-Day Forecast ---
-    
-    # 1. Fetch the necessary extended history for indicators
-    last_sequence_original = last_data_df.tail(TIME_STEP).values
-    scaled_last_sequence = full_data_scaler.transform(last_sequence_original)
-    
-    # Get the extended history of ONLY the close price
-    history_length = TIME_STEP + MAX_INDICATOR_LOOKBACK - 1
-
-    # Extract the necessary columns for indicator calculation (Close, High, Low)
-    required_indicator_cols = ['close', 'high', 'low'] 
-
-    # IMPORTANT: Ensure the original data loading includes 'high' and 'low'
-    # For now, we assume the data frame passed in (`last_data_df`) has them.    
-    extended_data_history = last_data_df[required_indicator_cols].tail(history_length)
-    
-    # 2. Perform the recursive forecast
-    forecasted_results = predict_next_n_days(
-        model, 
-        scaled_last_sequence, 
-        extended_data_history, 
-        full_data_scaler, 
-        target_scaler, 
-        n_days=FORECAST_DAYS,
-        model_type=model_type
-    )
-
-    print(f"\n--- {FORECAST_DAYS}-Day Multi-Step Forecast (Recalculated Indicators) ---")
-    
-    forecast_df = pd.DataFrame(forecasted_results, columns=TARGET_COLUMNS)
-    forecast_df.index = [f"Day +{i+1}" for i in range(FORECAST_DAYS)]
-    
-    forecast_df['close'] = forecast_df['close'].apply(lambda x: f"{x:,.2f}")
-    forecast_df['volume'] = forecast_df['volume'].apply(lambda x: f"{x:,.0f}")
-    
-    print(forecast_df.to_markdown(numalign="left", stralign="left"))
 
 # --- Main Execution ---
 
@@ -161,7 +145,7 @@ if __name__ == '__main__':
     
     # 1. Data Prep
     X_train, X_test, y_train, y_test, full_scaler, target_scaler, final_df_features = preprocess_data(
-        load_and_clean_data(), TIME_STEP, FEATURES, TARGET_COLUMNS
+        DATA_FILE_PATH, TIME_STEP, FEATURES, TARGET_COLUMNS
     )
 
     # 2. Setup Callbacks (Early Stopping & LR Scheduling)
@@ -236,7 +220,27 @@ if __name__ == '__main__':
     print(f"Learning Rate: {best_hps.get('learning_rate'):.5f}")
     print("="*50)
 
+    # # --- Global Setting for Model Save Path ---
+    # MODEL_SAVE_PATH = os.path.join('best_model', f'{PROJECT_NAME}_{SELECTED_MODEL_TYPE}.keras')
+    # os.makedirs(os.path.dirname(MODEL_SAVE_PATH), exist_ok=True)
+    # save_model(best_model, MODEL_SAVE_PATH)
+    # print("✅ Model saved successfully.")
+
     # 7. Final Evaluation and Prediction using the Best Model
-    evaluate_predict_and_forecast(
-        best_model, X_test, y_test, target_scaler, final_df_features, full_scaler, SELECTED_MODEL_TYPE
+    evaluate(
+        best_model, X_test, y_test, target_scaler, SELECTED_MODEL_TYPE
     )
+
+    for stock_symbol in PREDICT_STOCK_SYMBOLS:
+        filename = f"{stock_symbol}_price_history.csv"
+        file_path = os.path.join(FOLDER_PATH, filename)
+
+        df = pd.read_csv(file_path, parse_dates=True)
+        df['date'] = pd.to_datetime(df['date'])
+        df = df.sort_values(by='date').reset_index(drop=True)
+        df_features = df[FEATURES]
+
+        forecast(
+            best_model, target_scaler, df_features, full_scaler, SELECTED_MODEL_TYPE, stock_symbol
+        )
+        
