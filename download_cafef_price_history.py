@@ -138,7 +138,7 @@ def download_cafef_price_history(symbol, start_date_str, end_date_str):
 
 if __name__ == '__main__':
     # Use 'yyyy-mm-dd' format for dates
-    START_DATE = "2021-01-01" 
+    START_DATE = "2017-01-01" 
     END_DATE = datetime.now().strftime("%Y-%m-%d") 
     # END_DATE = "2025-11-06" 
     # ---------------------
@@ -152,6 +152,11 @@ if __name__ == '__main__':
         output_file = os.path.join(FOLDER_PATH, filename)
 
         current_df = download_cafef_price_history(stock_symbol, START_DATE, END_DATE)
+
+        # current_df = pd.read_csv(output_file, parse_dates=True)
+        # current_df['date'] = pd.to_datetime(current_df['date'])
+        # current_df = current_df.sort_values(by='date').reset_index(drop=True)
+
         current_df = calculate_technical_indicators(current_df)
 
         # 🧹 Clean data
@@ -165,6 +170,9 @@ if __name__ == '__main__':
         # 🚫 Remove rows with zero values in any numeric column
         current_df = current_df[(current_df[numeric_cols] != 0).all(axis=1)]
 
+        mask_invalid = np.isinf(current_df[numeric_cols]) | (current_df[numeric_cols].abs() > np.finfo(np.float64).max)
+        current_df.drop(index=mask_invalid[mask_invalid.any(axis=1)].index, inplace=True)
+
         current_df['date'] = pd.to_datetime(current_df['date'])
 
         current_df.sort_values(by=['date'], inplace=True)
@@ -175,6 +183,8 @@ if __name__ == '__main__':
         print(f"✅ Saved combined indicators to: {output_file}")
 
     final_df = pd.concat(all_data, ignore_index=True)
+    final_df.drop_duplicates(inplace=True)  # remove duplicate rows
+
     final_df.to_csv(DATA_FILE_PATH, index=False)
 
     print(f"✅ Total rows saved: {len(final_df)}")

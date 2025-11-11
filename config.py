@@ -12,14 +12,14 @@ NON_TARGET_FEATURES = [f for f in FEATURES if f not in TARGET_COLUMNS]
 VALIDATION_SPLIT = 0.1
 ACTIVATION = 'linear'
 OPTIMIZER = 'adam'
-EPOCHS = 1
-BATCH_SIZE = 32
+EPOCHS = 100
+BATCH_SIZE = 64
 FORECAST_DAYS = 7 
 # Max history needed for MACD Slow EMA (26 periods)
 MAX_INDICATOR_LOOKBACK = 26 
 
 # --- KerasTuner Hyperparameter Search Settings ---
-MAX_TRIALS = 1
+MAX_TRIALS = 40
 EXECUTIONS_PER_TRIAL = 1 
 OBJECTIVE_METRIC = 'val_loss' 
 PROJECT_NAME = 'lstm_stock_bo'
@@ -48,6 +48,14 @@ FOLDER_PATH = 'data'
 if not os.path.exists(FOLDER_PATH):
     os.makedirs(FOLDER_PATH)
 
-STOCK_SYMBOLS = ['PLX','PC1']
+STOCK_SYMBOLS = ['HPG', 'VIC', 'VHM', 'SSI', 'VIX', 'VND', 'SHB', 'MSN', 'GAS', 'POW',
+                 'VNM', 'BID', 'VRE', 'VCB', 'SBT', 'HAG', 'VCI', 'SAB', 'GVR', 'NAB',
+                 'EIB', 'VPB', 'PDR', 'GEX', 'KBC', 'TCH', 'BCM', 'DPM', 'DSE', 'DIG', 
+                 'VCG', 'DXG', 'HSG', 'FTS', 'KDH', 'STB', 'PVD', 'CTG', 'DCM', 'CII', 
+                 'MBB', 'VGC', 'NKG', 'HHV', 'PVT', 'FPT', 'VHC', 'GEE', 'DXS', 'DBC', 
+                 'HT1', 'VSC', 'BVH', 'BSI', 'TPB', 'HCM', 'SJS', 'PPC', 'DGC', 'SSB', 
+                 'VJC', 'PC1', 'VPI', 'ANV', 'LPB', 'EVF', 'SIP', 'HDG', 'KOS', 'NT2', 
+                 'CTS', 'KDC', 'BWE', 'HDC', 'TLG', 'OCB', 'DGW', 'PLX', 'PAN', 'VTP', 
+                 'CTR', 'MWG', 'SZC', 'ACB', 'FRT', 'CMG', 'TCB', 'SCS', 'NLG', 'IMP' ]
 
 PREDICT_STOCK_SYMBOLS = ['PLX','PC1']
