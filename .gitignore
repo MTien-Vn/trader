@@ -21,6 +21,8 @@ __pycache__/
 api_keys.txt
 config.ini
 
-data/
+data*/
 
 tuning_results*/
+
+summary*/

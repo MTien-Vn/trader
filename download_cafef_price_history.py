@@ -5,7 +5,7 @@ import numpy as np
 import os
 import time
 from calculate_technical_indicators import calculate_technical_indicators
-from config import DATA_FILE_PATH, FEATURES, FOLDER_PATH, STOCK_SYMBOLS
+from config import DATA_TRAINING_FILE_PATH, END_DATE, FEATURES, FOLDER_DATA_PATH, START_DATE, STOCK_SYMBOLS
 
 def download_cafef_price_history(symbol, start_date_str, end_date_str):
     """
@@ -137,19 +137,14 @@ def download_cafef_price_history(symbol, start_date_str, end_date_str):
 
 
 if __name__ == '__main__':
-    # Use 'yyyy-mm-dd' format for dates
-    START_DATE = "2017-01-01" 
-    END_DATE = datetime.now().strftime("%Y-%m-%d") 
-    # END_DATE = "2025-11-06" 
-    # ---------------------
     # Ensure the folder exists
-    os.makedirs(FOLDER_PATH, exist_ok=True)
+    os.makedirs(FOLDER_DATA_PATH, exist_ok=True)
 
     all_data = []
 
     for stock_symbol in STOCK_SYMBOLS:
         filename = f"{stock_symbol}_price_history.csv"
-        output_file = os.path.join(FOLDER_PATH, filename)
+        output_file = os.path.join(FOLDER_DATA_PATH, filename)
 
         current_df = download_cafef_price_history(stock_symbol, START_DATE, END_DATE)
 
@@ -185,7 +180,7 @@ if __name__ == '__main__':
     final_df = pd.concat(all_data, ignore_index=True)
     final_df.drop_duplicates(inplace=True)  # remove duplicate rows
 
-    final_df.to_csv(DATA_FILE_PATH, index=False)
+    final_df.to_csv(DATA_TRAINING_FILE_PATH, index=False)
 
     print(f"✅ Total rows saved: {len(final_df)}")
 

@@ -5,7 +5,7 @@ import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 from config import * # Import all global variables
 
-def load_and_clean_data(file_path=DATA_FILE_PATH):
+def load_and_clean_data(file_path=DATA_TRAINING_FILE_PATH):
     """Loads and performs basic cleaning/validation on the stock data."""
     df = pd.read_csv(file_path, parse_dates=True)
     df['date'] = pd.to_datetime(df['date'])
