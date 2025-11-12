@@ -3,7 +3,7 @@
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
-from config import * # Import all global variables
+from configs import * # Import all global variables
 
 def load_and_clean_data(file_path=DATA_TRAINING_FILE_PATH):
     """Loads and performs basic cleaning/validation on the stock data."""

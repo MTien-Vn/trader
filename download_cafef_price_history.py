@@ -5,7 +5,7 @@ import numpy as np
 import os
 import time
 from calculate_technical_indicators import calculate_technical_indicators
-from config import DATA_TRAINING_FILE_PATH, END_DATE, FEATURES, FOLDER_DATA_PATH, START_DATE, STOCK_SYMBOLS
+from configs import *
 
 def download_cafef_price_history(symbol, start_date_str, end_date_str):
     """

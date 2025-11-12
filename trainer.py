@@ -12,9 +12,9 @@ from tensorflow.keras.models import save_model
 import joblib # Import joblib for saving scalers
 
 # Local imports
-from config import *
+from configs import *
 from data_processor import  preprocess_data
-from model import build_model
+from modeler import get_model
 
 def evaluate(model, X_test, y_test, target_scaler, model_type):
     if model_type == 'ConvLSTM':
@@ -105,7 +105,7 @@ if __name__ == '__main__':
         print(f"🗑️ Previous tuning results cleared from {turner_dir}")
 
     # 4. Instantiate the Tuner (Pass the selected model type)
-    hypermodel_fn = lambda hp: build_model(hp, model_type=SELECTED_MODEL_TYPE)
+    hypermodel_fn = lambda hp: get_model(hp, model_type=SELECTED_MODEL_TYPE)
     
     tuner = kt.BayesianOptimization(
         hypermodel_fn,

@@ -9,10 +9,7 @@ import copy
 from datetime import datetime
 
 # --- Import configurations and utility functions ---
-from config import (
-    FEATURES, FOLDER_PREDICT_PATH, FOLDER_RESULT_PATH, FULL_SCALER_PATH, MODEL_SAVE_PATH, PREDICT_STOCK_SYMBOLS, SELECTED_MODEL_TYPE, TARGET_COLUMNS, NON_TARGET_FEATURES, TARGET_SCALER_PATH, TIME_STEP, 
-    FORECAST_DAYS
-)
+from configs import *
 from data_processor import get_target_indices
 # ...
 
