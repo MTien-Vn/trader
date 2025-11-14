@@ -68,7 +68,9 @@ PREDICT_STOCK_SYMBOLS = ['PLX','PC1']
 # --- CHOOSE MODEL HERE: 'LSTM', 'Bi-LSTM', 'ConvLSTM', 'GRU', 'attention' ---
 SELECTED_MODEL_TYPE = 'LSTM'
 
-FULL_SCALER_PATH = os.path.join('best_model', f'full_scaler_{SELECTED_MODEL_TYPE}.joblib')
-TARGET_SCALER_PATH = os.path.join('best_model', f'target_scaler_{SELECTED_MODEL_TYPE}.joblib')
-MODEL_SAVE_PATH = os.path.join('best_model', f'{PROJECT_NAME}_{SELECTED_MODEL_TYPE}.keras')
+BEST_MODEL = 'best_model_lstm'
+
+FULL_SCALER_PATH = os.path.join(BEST_MODEL, f'full_scaler_{SELECTED_MODEL_TYPE}.joblib')
+TARGET_SCALER_PATH = os.path.join(BEST_MODEL, f'target_scaler_{SELECTED_MODEL_TYPE}.joblib')
+MODEL_SAVE_PATH = os.path.join(BEST_MODEL, f'{PROJECT_NAME}_{SELECTED_MODEL_TYPE}.keras')
 
