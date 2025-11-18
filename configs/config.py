@@ -42,10 +42,10 @@ PATIENCE_LR_SCHEDULING = 5
 
 # Use 'yyyy-mm-dd' format for dates
 START_DATE = "2025-08-01"
-END_DATE = "2025-11-11" 
+END_DATE = "2025-11-17" 
 
-FOLDER_DATA_PATH = 'data_training'
-# FOLDER_DATA_PATH = 'data_predict'
+# FOLDER_DATA_PATH = 'data_training'
+FOLDER_DATA_PATH = 'data_predict'
 
 FOLDER_PREDICT_PATH = 'data_predict'
 FOLDER_RESULT_PATH = 'summary'
